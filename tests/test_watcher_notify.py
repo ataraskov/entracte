@@ -41,7 +41,7 @@ async def test_notify_fires_once_when_entering_window_then_dedups(monkeypatch):
 
     duration_ms = 6_000_000
     chapters = [Chapter(i, i * 600_000, (i + 1) * 600_000, f"Ch {i + 1}") for i in range(10)]
-    # target_pct=0.5 -> midpoint 3,000,000ms -> chapter 5 (index 5) starts exactly there.
+    # min=2,400,000ms, max=3,600,000ms -> midpoint 3,000,000ms -> chapter 5 (index 5) starts exactly there.
     # lead_time=120s -> notify window is [2,880,000, 3,000,000]ms.
 
     session = PlaySession(
@@ -50,7 +50,7 @@ async def test_notify_fires_once_when_entering_window_then_dedups(monkeypatch):
     )
     client = FakeClient(session, chapters, duration_ms)
 
-    await watcher.poll_once(client, target_pct=0.5, skip_start_pct=0.15, skip_end_pct=0.10, lead_time_s=120)
+    await watcher.poll_once(client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120)
     await _drain_background_tasks()
     assert len(calls) == 1
     assert calls[0][0] == "Time for a break"
@@ -61,7 +61,7 @@ async def test_notify_fires_once_when_entering_window_then_dedups(monkeypatch):
 
     # Second poll, same session, still inside the window: must not double-notify.
     session.view_offset_ms = 2_980_000
-    await watcher.poll_once(client, target_pct=0.5, skip_start_pct=0.15, skip_end_pct=0.10, lead_time_s=120)
+    await watcher.poll_once(client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120)
     await _drain_background_tasks()
     assert len(calls) == 1
 
@@ -91,6 +91,6 @@ async def test_notify_does_not_fire_outside_window(monkeypatch):
     )
     client = FakeClient(session, chapters, duration_ms)
 
-    await watcher.poll_once(client, target_pct=0.5, skip_start_pct=0.15, skip_end_pct=0.10, lead_time_s=120)
+    await watcher.poll_once(client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120)
     await _drain_background_tasks()
     assert calls == []

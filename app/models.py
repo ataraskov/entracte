@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Float, Integer, String, Boolean, DateTime, UniqueConstraint
+from sqlalchemy import Integer, String, Boolean, DateTime, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -24,9 +24,8 @@ class Settings(Base):
     plex_token: Mapped[str] = mapped_column(String, default="")
 
     # Break heuristic parameters
-    break_target_pct: Mapped[float] = mapped_column(Float, default=0.5)
-    break_skip_start_pct: Mapped[float] = mapped_column(Float, default=0.15)
-    break_skip_end_pct: Mapped[float] = mapped_column(Float, default=0.10)
+    break_min_duration_min: Mapped[int] = mapped_column(Integer, default=20)
+    break_max_duration_min: Mapped[int] = mapped_column(Integer, default=60)
     break_lead_time_s: Mapped[int] = mapped_column(Integer, default=120)
 
     # Web Push

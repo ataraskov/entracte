@@ -15,11 +15,16 @@ uvicorn app.main:app --reload      # run locally, http://localhost:8000
 pytest                              # run all tests
 pytest tests/test_watcher_notify.py -k some_test  # run a single test
 docker compose up -d --build        # run via Docker instead
+
+alembic revision --autogenerate -m "describe the change"  # after editing app/models.py
+alembic upgrade head                # apply migrations to $ENTRACTE_DB_PATH (also runs automatically on app startup)
 ```
 
 There is no lint/format command configured in this repo.
 
 Config is env-driven (`ENTRACTE_*` vars, see `.env.example` and `app/config.py`); secrets (Plex token, notifier credentials) are entered via the `/settings` page and stored in the DB, never via env/CLI.
+
+**Schema changes go through Alembic** (`migrations/`, config in `alembic.ini`). `app/db.py::init_db` runs `alembic upgrade head` on every startup instead of `Base.metadata.create_all`; DBs that predate Alembic (no `alembic_version` table but an existing `settings` table) are auto-stamped at revision `0001` (a snapshot of the pre-Alembic schema) before upgrading, so already-deployed DBs adopt migrations without re-running old `CREATE TABLE`s. After changing a model in `app/models.py`, generate a migration with `alembic revision --autogenerate`, then read the generated file — autogenerate can't infer renames (it'll emit a drop+add) or pick a sensible data migration/default for the new column, so edit it by hand when that matters.
 
 ## Architecture
 
@@ -27,7 +32,7 @@ Config is env-driven (`ENTRACTE_*` vars, see `.env.example` and `app/config.py`)
 
 **Background polling loop drives everything.** `app/plex/watcher.py::run_forever` is started as an asyncio task in the FastAPI `lifespan` (`app/main.py`) and is the only place that reads Plex state and decides when to notify:
 - Polls `/status/sessions` on `poll_interval_s` (configurable), plus a best-effort websocket listener (`_websocket_loop`) to Plex's undocumented notifications endpoint that wakes the poll loop early on "playing" events — the websocket is purely a "poll now" trigger, never a data source, since it's unstable/undocumented.
-- On a new session, fetches chapters and calls `app/breaks/heuristic.py::suggest_break` to pick the chapter boundary closest to a configurable target percent of runtime, skipping a head/tail window (`break_skip_start_pct`/`break_skip_end_pct`).
+- On a new session, fetches chapters and calls `app/breaks/heuristic.py::suggest_break` to pick the chapter boundary closest to the midpoint of a configurable min/max watching-duration window (`break_min_duration_min`/`break_max_duration_min`), falling back to the closest boundary overall if none fall inside that window.
 - `SessionStore` (in-process, in-memory) holds the current session + chapters for the dashboard to read; `SessionState` (DB-persisted) holds only what's needed for notify-once dedup (`notified_at`) so restarts/reconnects can't double-send.
 - `_maybe_notify` fires once per session when playback position enters `[suggested_offset - lead_time, suggested_offset]`, via `app.notifications.dispatcher.notify(...)` as a fire-and-forget task (tasks are kept in `_background_tasks` so asyncio's weak references don't GC them mid-flight).
 

@@ -113,9 +113,8 @@ def _maybe_notify(
 
 async def poll_once(
     client: PlexClient,
-    target_pct: float,
-    skip_start_pct: float,
-    skip_end_pct: float,
+    min_duration_ms: int,
+    max_duration_ms: int,
     lead_time_s: int,
 ) -> None:
     sessions = await client.get_sessions()
@@ -142,7 +141,7 @@ async def poll_once(
     chapters, duration_ms = await client.get_chapters(session.rating_key)
     duration_ms = duration_ms or session.duration_ms
     suggested = (
-        suggest_break(chapters, duration_ms, target_pct, skip_start_pct, skip_end_pct)
+        suggest_break(chapters, duration_ms, min_duration_ms, max_duration_ms)
         if chapters
         else None
     )
@@ -170,15 +169,14 @@ async def _poll_cycle() -> None:
         with SessionLocal() as db:
             s = db.get(Settings, 1)
             base_url, token = s.plex_base_url, s.plex_token
-            target_pct = s.break_target_pct
-            skip_start_pct = s.break_skip_start_pct
-            skip_end_pct = s.break_skip_end_pct
+            min_duration_ms = s.break_min_duration_min * 60_000
+            max_duration_ms = s.break_max_duration_min * 60_000
             lead_time_s = s.break_lead_time_s
 
         if base_url and token:
             client = PlexClient(base_url, token)
             try:
-                await poll_once(client, target_pct, skip_start_pct, skip_end_pct, lead_time_s)
+                await poll_once(client, min_duration_ms, max_duration_ms, lead_time_s)
             finally:
                 await client.aclose()
         else:

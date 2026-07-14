@@ -38,9 +38,8 @@ def save_settings(
     db: Session = Depends(get_db),
     plex_base_url: str = Form(...),
     plex_token: str = Form(...),
-    break_target_pct: float = Form(...),
-    break_skip_start_pct: float = Form(...),
-    break_skip_end_pct: float = Form(...),
+    break_min_duration_min: int = Form(...),
+    break_max_duration_min: int = Form(...),
     break_lead_time_s: int = Form(...),
     webpush_enabled: bool = Form(False),
     gotify_enabled: bool = Form(False),
@@ -53,9 +52,8 @@ def save_settings(
     s = db.get(Settings, 1)
     s.plex_base_url = plex_base_url.rstrip("/")
     s.plex_token = plex_token
-    s.break_target_pct = break_target_pct
-    s.break_skip_start_pct = break_skip_start_pct
-    s.break_skip_end_pct = break_skip_end_pct
+    s.break_min_duration_min = break_min_duration_min
+    s.break_max_duration_min = break_max_duration_min
     s.break_lead_time_s = break_lead_time_s
     s.webpush_enabled = webpush_enabled
     s.gotify_enabled = gotify_enabled

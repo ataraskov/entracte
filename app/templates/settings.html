@@ -22,14 +22,25 @@
 
   <fieldset>
     <legend><strong>Break heuristic</strong></legend>
-    <label>Target position in runtime (0-1, e.g. 0.5 = midpoint)
-      <input type="number" step="0.01" min="0" max="1" name="break_target_pct" value="{{ s.break_target_pct }}">
+    <label>Minimum watching duration before a break (minutes)
+      <select class="duration-preset" data-target="break_min_duration_min">
+        <option value="">Preset&hellip;</option>
+        <option value="20">20 min</option>
+        <option value="30">30 min</option>
+        <option value="40">40 min</option>
+        <option value="60">60 min</option>
+      </select>
+      <input type="number" step="1" min="1" id="break_min_duration_min" name="break_min_duration_min" value="{{ s.break_min_duration_min }}" placeholder="e.g. 25">
     </label>
-    <label>Skip first fraction of runtime (0-1)
-      <input type="number" step="0.01" min="0" max="1" name="break_skip_start_pct" value="{{ s.break_skip_start_pct }}">
-    </label>
-    <label>Skip last fraction of runtime (0-1)
-      <input type="number" step="0.01" min="0" max="1" name="break_skip_end_pct" value="{{ s.break_skip_end_pct }}">
+    <label>Maximum watching duration before a break (minutes)
+      <select class="duration-preset" data-target="break_max_duration_min">
+        <option value="">Preset&hellip;</option>
+        <option value="20">20 min</option>
+        <option value="30">30 min</option>
+        <option value="40">40 min</option>
+        <option value="60">60 min</option>
+      </select>
+      <input type="number" step="1" min="1" id="break_max_duration_min" name="break_max_duration_min" value="{{ s.break_max_duration_min }}" placeholder="e.g. 25">
     </label>
     <label>Notification lead time before the break (seconds)
       <input type="number" step="1" min="0" name="break_lead_time_s" value="{{ s.break_lead_time_s }}">

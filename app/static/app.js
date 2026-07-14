@@ -39,4 +39,11 @@ async function enableWebPush() {
 document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("webpush-subscribe-btn");
   if (btn) btn.addEventListener("click", enableWebPush);
+
+  document.querySelectorAll(".duration-preset").forEach((select) => {
+    select.addEventListener("change", () => {
+      if (!select.value) return;
+      document.getElementById(select.dataset.target).value = select.value;
+    });
+  });
 });

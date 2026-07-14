@@ -1,0 +1,3 @@
+Add a dropdown/text-field to spcecify minimum and maximum duration of a watching session.
+Dropdown should have predefined defaults (for example 20, 30, 40, 60), text-field should allow to specify custom value (for example 25).
+Suggest breaks to satisfy target watching duration.
