@@ -6,5 +6,5 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - ENTRACTE_DB_PATH=/app/data/entracte.db
+      - ${ENTRACTE_DB_PATH:-./data}=/app/data/entracte.db
     restart: unless-stopped
