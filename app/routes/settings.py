@@ -41,6 +41,7 @@ def save_settings(
     break_min_duration_min: int = Form(...),
     break_max_duration_min: int = Form(...),
     break_lead_time_s: int = Form(...),
+    autopause_enabled: bool = Form(False),
     webpush_enabled: bool = Form(False),
     gotify_enabled: bool = Form(False),
     gotify_url: str = Form(""),
@@ -55,6 +56,7 @@ def save_settings(
     s.break_min_duration_min = break_min_duration_min
     s.break_max_duration_min = break_max_duration_min
     s.break_lead_time_s = break_lead_time_s
+    s.autopause_enabled = autopause_enabled
     s.webpush_enabled = webpush_enabled
     s.gotify_enabled = gotify_enabled
     s.gotify_url = gotify_url.rstrip("/")

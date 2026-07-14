@@ -49,6 +49,62 @@ async def test_get_sessions_parses_movie_session():
 
 
 @pytest.mark.asyncio
+async def test_get_sessions_parses_player_machine_identifier():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "MediaContainer": {
+                    "Metadata": [
+                        {
+                            "sessionKey": "7",
+                            "ratingKey": "123",
+                            "title": "Arrival",
+                            "type": "movie",
+                            "duration": 6600000,
+                            "viewOffset": 120000,
+                            "Player": {"machineIdentifier": "player-xyz"},
+                        }
+                    ]
+                }
+            },
+        )
+
+    client = make_client(handler)
+    sessions = await client.get_sessions()
+    assert sessions[0].player_machine_identifier == "player-xyz"
+
+
+@pytest.mark.asyncio
+async def test_pause_sends_target_client_header():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/player/playback/pause"
+        assert request.url.params["type"] == "video"
+        assert request.headers["X-Plex-Target-Client-Identifier"] == "player-xyz"
+        # Plex's PMS rejects /player/* commands missing commandID with a
+        # bare 400 Bad Request (confirmed against a real server).
+        assert "commandID" in request.url.params
+        return httpx.Response(200)
+
+    client = make_client(handler)
+    await client.pause("player-xyz")
+
+
+@pytest.mark.asyncio
+async def test_pause_increments_command_id_across_calls():
+    seen_command_ids = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_command_ids.append(request.url.params["commandID"])
+        return httpx.Response(200)
+
+    client = make_client(handler)
+    await client.pause("player-xyz")
+    await client.pause("player-xyz")
+    assert len(set(seen_command_ids)) == 2
+
+
+@pytest.mark.asyncio
 async def test_get_sessions_empty():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"MediaContainer": {}})

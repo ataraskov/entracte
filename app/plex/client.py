@@ -1,8 +1,19 @@
 from __future__ import annotations
 
 import dataclasses
+import itertools
+import logging
 
 import httpx
+
+logger = logging.getLogger(__name__)
+
+# Per the Plex Companion protocol, every /player/* command must carry a
+# commandID that increments with each command sent - the PMS rejects
+# requests missing it with a bare 400 Bad Request. Module-level so it keeps
+# incrementing across PlexClient instances (a new one is created each poll
+# cycle) rather than resetting to the same value every time.
+_command_id = itertools.count(1)
 
 
 @dataclasses.dataclass
@@ -22,6 +33,7 @@ class PlaySession:
     duration_ms: int
     view_offset_ms: int
     thumb: str = ""
+    player_machine_identifier: str = ""
 
 
 class PlexClient:
@@ -55,9 +67,25 @@ class PlexClient:
                 duration_ms=int(item.get("duration", 0)),
                 view_offset_ms=int(item.get("viewOffset", 0)),
                 thumb=item.get("thumb", ""),
+                player_machine_identifier=item.get("Player", {}).get("machineIdentifier", ""),
             )
             for item in items
         ]
+
+    async def pause(self, player_machine_identifier: str) -> None:
+        """Pauses playback on a client via the PMS's player-control proxy
+        (the same mechanism Plex Companion/plexapi use to target a specific
+        connected client by machineIdentifier rather than talking to it
+        directly)."""
+        resp = await self._client.get(
+            "/player/playback/pause",
+            params={"type": "video", "commandID": next(_command_id)},
+            headers={"X-Plex-Target-Client-Identifier": player_machine_identifier},
+        )
+        logger.info(
+            "Pause request to player %s: HTTP %s", player_machine_identifier, resp.status_code
+        )
+        resp.raise_for_status()
 
     async def get_chapters(self, rating_key: str) -> tuple[list[Chapter], int]:
         resp = await self._client.get(

@@ -28,6 +28,9 @@ class Settings(Base):
     break_max_duration_min: Mapped[int] = mapped_column(Integer, default=60)
     break_lead_time_s: Mapped[int] = mapped_column(Integer, default=120)
 
+    # Auto-pause
+    autopause_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # Web Push
     webpush_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     vapid_public_key: Mapped[str] = mapped_column(String, default="")
@@ -68,6 +71,7 @@ class SessionState(Base):
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     suggested_break_offset_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    paused_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=_utcnow, onupdate=_utcnow
     )

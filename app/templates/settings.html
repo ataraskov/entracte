@@ -48,6 +48,15 @@
   </fieldset>
 
   <fieldset>
+    <legend><strong>Auto-pause</strong></legend>
+    <label>
+      <input type="checkbox" name="autopause_enabled" {% if s.autopause_enabled %}checked{% endif %}>
+      Automatically pause playback at the suggested break point
+    </label>
+    <small>Requires the Plex client to support remote control (most official apps do).</small>
+  </fieldset>
+
+  <fieldset>
     <legend><strong>Web Push</strong></legend>
     <label>
       <input type="checkbox" name="webpush_enabled" {% if s.webpush_enabled %}checked{% endif %}>

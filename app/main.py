@@ -16,6 +16,10 @@ logging.basicConfig(level=logging.INFO)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # alembic's fileConfig() (run above, as part of the migration) resets the
+    # root logger per alembic.ini's [logger_root] (level=WARNING), clobbering
+    # the level set below. Re-assert it here so app-level INFO logs survive.
+    logging.basicConfig(level=logging.INFO, force=True)
     watcher_task = asyncio.create_task(watcher.run_forever(config.poll_interval_s))
     yield
     watcher_task.cancel()

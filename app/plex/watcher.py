@@ -38,6 +38,7 @@ class CurrentSession:
     view_offset_ms: int
     chapters: list[Chapter]
     suggested_break: Chapter | None
+    player_machine_identifier: str = ""
 
 
 class SessionStore:
@@ -59,6 +60,13 @@ class SessionStore:
 
 
 store = SessionStore()
+
+
+def _session_sort_key(session_key: str) -> int:
+    try:
+        return int(session_key)
+    except ValueError:
+        return -1
 
 
 def _persist_session_state(session: PlaySession, suggested: Chapter | None, duration_ms: int) -> None:
@@ -111,11 +119,63 @@ def _maybe_notify(
     _fire_and_forget(dispatcher.notify("Time for a break", body))
 
 
+async def _maybe_autopause(
+    client: PlexClient,
+    session_key: str,
+    player_machine_identifier: str,
+    suggested: Chapter | None,
+    view_offset_ms: int,
+    enabled: bool,
+) -> None:
+    """Pauses playback once per approach to the suggested break point. Dedup
+    is enforced via SessionState.paused_at, same pattern as _maybe_notify,
+    but re-armed whenever position drops back below the break point (e.g.
+    the user resumes from before it, or seeks backward) so a fresh crossing
+    pauses again instead of being permanently suppressed for the session."""
+    if not enabled or suggested is None:
+        return
+    if view_offset_ms < suggested.start_offset_ms:
+        with SessionLocal() as db:
+            row = db.query(SessionStateModel).filter_by(session_key=session_key).one_or_none()
+            if row is not None and row.paused_at is not None:
+                row.paused_at = None
+                db.commit()
+        return
+    if not player_machine_identifier:
+        logger.info("Autopause enabled but session has no controllable player; skipping")
+        return
+
+    with SessionLocal() as db:
+        row = db.query(SessionStateModel).filter_by(session_key=session_key).one_or_none()
+        if row is None or row.paused_at is not None:
+            return
+
+    try:
+        await client.pause(player_machine_identifier)
+    except Exception:
+        # Don't mark paused_at on failure (e.g. a transient 404 from Plex
+        # when the target player briefly isn't reachable as a controllable
+        # client) - leave the dedup slot open so the next poll retries,
+        # rather than silently giving up on this crossing.
+        logger.exception(
+            "Failed to auto-pause playback (session=%s player=%s); will retry next poll",
+            session_key, player_machine_identifier,
+        )
+        return
+
+    with SessionLocal() as db:
+        row = db.query(SessionStateModel).filter_by(session_key=session_key).one_or_none()
+        if row is not None:
+            row.paused_at = datetime.now(timezone.utc)
+            db.commit()
+
+
 async def poll_once(
     client: PlexClient,
     min_duration_ms: int,
     max_duration_ms: int,
     lead_time_s: int,
+    autopause_enabled: bool = False,
 ) -> None:
     sessions = await client.get_sessions()
     movie_sessions = [s for s in sessions if s.type == "movie"]
@@ -124,7 +184,13 @@ async def poll_once(
         await store.set(None)
         return
 
-    session = movie_sessions[0]
+    # Plex's sessionKey increments monotonically per new playback session, so
+    # the highest one is the most recently started. Picking the plain first
+    # entry Plex returns is unreliable: a stale session left behind by a
+    # client that dropped without a clean disconnect can still show up in
+    # /status/sessions (and sort ahead of a genuinely active one), which
+    # would otherwise permanently lock the watcher onto a dead session.
+    session = max(movie_sessions, key=lambda s: _session_sort_key(s.session_key))
     current = await store.get()
 
     if current and current.session_key == session.session_key:
@@ -135,6 +201,10 @@ async def poll_once(
         _maybe_notify(
             session.session_key, current.title, current.suggested_break,
             session.view_offset_ms, lead_time_s,
+        )
+        await _maybe_autopause(
+            client, session.session_key, current.player_machine_identifier,
+            current.suggested_break, session.view_offset_ms, autopause_enabled,
         )
         return
 
@@ -156,11 +226,16 @@ async def poll_once(
             view_offset_ms=session.view_offset_ms,
             chapters=chapters,
             suggested_break=suggested,
+            player_machine_identifier=session.player_machine_identifier,
         )
     )
     _persist_session_state(session, suggested, duration_ms)
     _maybe_notify(
         session.session_key, session.title, suggested, session.view_offset_ms, lead_time_s
+    )
+    await _maybe_autopause(
+        client, session.session_key, session.player_machine_identifier,
+        suggested, session.view_offset_ms, autopause_enabled,
     )
 
 
@@ -172,11 +247,14 @@ async def _poll_cycle() -> None:
             min_duration_ms = s.break_min_duration_min * 60_000
             max_duration_ms = s.break_max_duration_min * 60_000
             lead_time_s = s.break_lead_time_s
+            autopause_enabled = s.autopause_enabled
 
         if base_url and token:
             client = PlexClient(base_url, token)
             try:
-                await poll_once(client, min_duration_ms, max_duration_ms, lead_time_s)
+                await poll_once(
+                    client, min_duration_ms, max_duration_ms, lead_time_s, autopause_enabled
+                )
             finally:
                 await client.aclose()
         else:

@@ -15,7 +15,11 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers defaults to True, which would silently
+    # disable every logger the app already created before init_db() runs
+    # this migration at startup (app.plex.*, uvicorn.error, etc.) since
+    # they aren't declared in alembic.ini's [loggers] section.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Always derive the DB URL from app config (which itself honors
 # ENTRACTE_DB_PATH), never from a hardcoded value in alembic.ini, so the
