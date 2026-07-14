@@ -1,0 +1,30 @@
+[project]
+name = "entracte"
+version = "0.1.0"
+description = "Suggests and notifies a good place to take a break in the Plex movie you're watching."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "sqlalchemy>=2.0",
+    "httpx>=0.27",
+    "websockets>=12.0",
+    "pywebpush>=2.0",
+    "py-vapid>=1.9",
+    "python-multipart>=0.0.9",
+    "pydantic-settings>=2.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

@@ -1,0 +1,10 @@
+services:
+  entracte:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - ENTRACTE_DB_PATH=/app/data/entracte.db
+    restart: unless-stopped

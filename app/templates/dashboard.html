@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Entracte{% endblock %}
+{% block content %}
+<h1>Now playing</h1>
+<div id="session-panel" hx-get="/api/session/current" hx-trigger="load, every 5s" hx-swap="innerHTML">
+  {% include "_chapter_timeline.html" %}
+</div>
+{% endblock %}

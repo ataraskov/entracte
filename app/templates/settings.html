@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Settings - Entracte{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+
+{% if saved %}
+<article style="border-color: var(--pico-ins-color)">Settings saved.</article>
+{% endif %}
+
+<form method="post" action="/settings">
+  <fieldset>
+    <legend><strong>Plex connection</strong></legend>
+    <label>Server URL
+      <input type="text" name="plex_base_url" value="{{ s.plex_base_url }}" placeholder="http://plex.local:32400" required>
+    </label>
+    <label>Access token
+      <input type="password" name="plex_token" value="{{ s.plex_token }}" placeholder="X-Plex-Token" required>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend><strong>Break heuristic</strong></legend>
+    <label>Target position in runtime (0-1, e.g. 0.5 = midpoint)
+      <input type="number" step="0.01" min="0" max="1" name="break_target_pct" value="{{ s.break_target_pct }}">
+    </label>
+    <label>Skip first fraction of runtime (0-1)
+      <input type="number" step="0.01" min="0" max="1" name="break_skip_start_pct" value="{{ s.break_skip_start_pct }}">
+    </label>
+    <label>Skip last fraction of runtime (0-1)
+      <input type="number" step="0.01" min="0" max="1" name="break_skip_end_pct" value="{{ s.break_skip_end_pct }}">
+    </label>
+    <label>Notification lead time before the break (seconds)
+      <input type="number" step="1" min="0" name="break_lead_time_s" value="{{ s.break_lead_time_s }}">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend><strong>Web Push</strong></legend>
+    <label>
+      <input type="checkbox" name="webpush_enabled" {% if s.webpush_enabled %}checked{% endif %}>
+      Enabled
+    </label>
+    <button type="button" id="webpush-subscribe-btn">Enable push in this browser</button>
+    <small id="webpush-status"></small>
+  </fieldset>
+
+  <fieldset>
+    <legend><strong>Gotify</strong></legend>
+    <label>
+      <input type="checkbox" name="gotify_enabled" {% if s.gotify_enabled %}checked{% endif %}>
+      Enabled
+    </label>
+    <label>Server URL
+      <input type="text" name="gotify_url" value="{{ s.gotify_url }}" placeholder="http://gotify.local">
+    </label>
+    <label>App token
+      <input type="password" name="gotify_token" value="{{ s.gotify_token }}">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend><strong>Telegram</strong></legend>
+    <label>
+      <input type="checkbox" name="telegram_enabled" {% if s.telegram_enabled %}checked{% endif %}>
+      Enabled
+    </label>
+    <label>Bot token
+      <input type="password" name="telegram_bot_token" value="{{ s.telegram_bot_token }}">
+    </label>
+    <label>Chat ID
+      <input type="text" name="telegram_chat_id" value="{{ s.telegram_chat_id }}">
+    </label>
+  </fieldset>
+
+  <button type="submit">Save settings</button>
+</form>
+
+<script src="/static/app.js"></script>
+{% endblock %}
