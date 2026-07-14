@@ -1,0 +1,4 @@
+Settings page should have a button for each setting section to check it.
+
+For example:
+User adds plex URL and token, clicks check, app checks that provided data is good and connection to plex is possible.

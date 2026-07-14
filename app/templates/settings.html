@@ -16,6 +16,8 @@
     <label>Access token
       <input type="password" name="plex_token" value="{{ s.plex_token }}" placeholder="X-Plex-Token" required>
     </label>
+    <button type="button" hx-post="/settings/check/plex" hx-include="closest fieldset" hx-target="#plex-check-result" hx-swap="innerHTML">Check connection</button>
+    <span id="plex-check-result"></span>
   </fieldset>
 
   <fieldset>
@@ -42,6 +44,9 @@
     </label>
     <button type="button" id="webpush-subscribe-btn">Enable push in this browser</button>
     <small id="webpush-status"></small>
+    <br>
+    <button type="button" hx-post="/settings/check/webpush" hx-target="#webpush-check-result" hx-swap="innerHTML">Send test notification</button>
+    <span id="webpush-check-result"></span>
   </fieldset>
 
   <fieldset>
@@ -56,6 +61,8 @@
     <label>App token
       <input type="password" name="gotify_token" value="{{ s.gotify_token }}">
     </label>
+    <button type="button" hx-post="/settings/check/gotify" hx-include="closest fieldset" hx-target="#gotify-check-result" hx-swap="innerHTML">Send test notification</button>
+    <span id="gotify-check-result"></span>
   </fieldset>
 
   <fieldset>
@@ -70,6 +77,8 @@
     <label>Chat ID
       <input type="text" name="telegram_chat_id" value="{{ s.telegram_chat_id }}">
     </label>
+    <button type="button" hx-post="/settings/check/telegram" hx-include="closest fieldset" hx-target="#telegram-check-result" hx-swap="innerHTML">Send test notification</button>
+    <span id="telegram-check-result"></span>
   </fieldset>
 
   <button type="submit">Save settings</button>
