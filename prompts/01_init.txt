@@ -1,0 +1,6 @@
+Plan a web app which does following:
+* analyses currently playing plex movie
+* extracts chapters info
+* suggests a good place to have a break
+* pushes a notification to the user that it's a good time to have a break
+* supports notifications options like: web push, gotify, telegram, ...
