@@ -1,0 +1,1 @@
+Add favicon to the web app.
