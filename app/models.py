@@ -27,6 +27,7 @@ class Settings(Base):
     break_min_duration_min: Mapped[int] = mapped_column(Integer, default=20)
     break_max_duration_min: Mapped[int] = mapped_column(Integer, default=60)
     break_lead_time_s: Mapped[int] = mapped_column(Integer, default=120)
+    break_resume_gap_min: Mapped[int] = mapped_column(Integer, default=15)
 
     # Auto-pause
     autopause_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -69,8 +70,12 @@ class SessionState(Base):
     rating_key: Mapped[str] = mapped_column(String)
     title: Mapped[str] = mapped_column(String, default="")
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    segment_start_ms: Mapped[int] = mapped_column(Integer, default=0)
+    last_seen_view_offset_ms: Mapped[int] = mapped_column(Integer, default=0)
+    last_progress_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     suggested_break_offset_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    notified_for_offset_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     paused_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=_utcnow, onupdate=_utcnow

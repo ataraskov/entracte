@@ -13,7 +13,7 @@
 
   {% if session.suggested_break %}
   <p>
-    <strong>Suggested break:</strong>
+    <strong>Next suggested break:</strong>
     {{ session.suggested_break.title or "Chapter " ~ (session.suggested_break.index + 1) }}
     at {{ (session.suggested_break.start_offset_ms / 60000) | round(1) }} min
   </p>
@@ -24,13 +24,24 @@
   {% endif %}
 
   {% if session.chapters %}
-  <p><strong>Chapters</strong></p>
+  <p><strong>Chapters</strong>{% if session.upcoming_breaks and session.upcoming_breaks|length > 1 %} <small>(highlighted marks show all suggested break points for this title)</small>{% endif %}</p>
+  {% set upcoming_indices = session.upcoming_breaks | map(attribute="index") | list %}
   <div style="position: relative; height: 2.5rem; background: var(--pico-muted-border-color); border-radius: var(--pico-border-radius);">
     {% for c in session.chapters %}
     {% set left_pct = (c.start_offset_ms / session.duration_ms * 100) if session.duration_ms else 0 %}
+    {% if session.suggested_break and c.index == session.suggested_break.index %}
+      {% set mark_color = "var(--pico-primary)" %}
+      {% set mark_width = "3px" %}
+    {% elif c.index in upcoming_indices %}
+      {% set mark_color = "var(--pico-primary-hover)" %}
+      {% set mark_width = "2px" %}
+    {% else %}
+      {% set mark_color = "var(--pico-secondary)" %}
+      {% set mark_width = "2px" %}
+    {% endif %}
     <div title="{{ c.title or 'Chapter ' ~ (c.index + 1) }} ({{ (c.start_offset_ms / 60000) | round(1) }} min)"
-         style="position: absolute; left: {{ left_pct }}%; top: 0; bottom: 0; width: 2px;
-                background: {{ 'var(--pico-primary)' if session.suggested_break and c.index == session.suggested_break.index else 'var(--pico-secondary)' }};">
+         style="position: absolute; left: {{ left_pct }}%; top: 0; bottom: 0; width: {{ mark_width }};
+                background: {{ mark_color }};">
     </div>
     {% endfor %}
     {% set progress_pct = (session.view_offset_ms / session.duration_ms * 100) if session.duration_ms else 0 %}

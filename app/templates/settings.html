@@ -45,6 +45,10 @@
     <label>Notification lead time before the break (seconds)
       <input type="number" step="1" min="0" name="break_lead_time_s" value="{{ s.break_lead_time_s }}">
     </label>
+    <label>Treat a pause longer than this as a new watching session (minutes)
+      <input type="number" step="1" min="1" name="break_resume_gap_min" value="{{ s.break_resume_gap_min }}">
+    </label>
+    <small>After resuming from a pause this long, the next break is suggested relative to when you resumed, not the original start of the title.</small>
   </fieldset>
 
   <fieldset>

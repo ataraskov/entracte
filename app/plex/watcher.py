@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 import websockets
 
-from app.breaks.heuristic import suggest_break
+from app.breaks.heuristic import suggest_break, suggest_breaks
 from app.db import SessionLocal
 from app.models import Settings, SessionState as SessionStateModel
 from app.notifications import dispatcher
@@ -38,6 +38,7 @@ class CurrentSession:
     view_offset_ms: int
     chapters: list[Chapter]
     suggested_break: Chapter | None
+    upcoming_breaks: list[Chapter] = dataclasses.field(default_factory=list)
     player_machine_identifier: str = ""
 
 
@@ -69,7 +70,32 @@ def _session_sort_key(session_key: str) -> int:
         return -1
 
 
-def _persist_session_state(session: PlaySession, suggested: Chapter | None, duration_ms: int) -> None:
+def _advance_segment(
+    session: PlaySession,
+    chapters: list[Chapter],
+    duration_ms: int,
+    min_duration_ms: int,
+    max_duration_ms: int,
+    resume_gap_threshold_s: int,
+) -> tuple[Chapter | None, int]:
+    """Tracks the current watching segment's anchor (segment_start_ms) and
+    recomputes the next suggested break relative to it. The anchor advances
+    in two cases: (1) playback has already reached the break suggested on a
+    prior poll, so the *next* poll's window starts there - this is what
+    produces multiple spaced-out suggestions across a long title instead of
+    just one; (2) a long real-world gap was detected since view_offset last
+    actually moved (a real pause, or the session dropping out of Plex's
+    session list and reappearing) - the anchor resets to wherever playback
+    resumed, so the break window is computed from the new watching session
+    rather than the original video start. Runs on every poll (not just for
+    new sessions) so both cases are caught as soon as they happen.
+
+    Case (1) only takes effect for the *next* poll, not this one: this
+    poll's returned suggestion is always computed from the anchor as it
+    stood at the start of the poll, so the poll that first crosses into a
+    break's window still reports that break to _maybe_notify/_maybe_autopause
+    below, rather than one already advanced past it."""
+    now = datetime.now(timezone.utc)
     with SessionLocal() as db:
         row = (
             db.query(SessionStateModel)
@@ -79,11 +105,61 @@ def _persist_session_state(session: PlaySession, suggested: Chapter | None, dura
         if row is None:
             row = SessionStateModel(session_key=session.session_key)
             db.add(row)
+            row.segment_start_ms = session.view_offset_ms
+        else:
+            last_progress_at = row.last_progress_at
+            if last_progress_at is not None and last_progress_at.tzinfo is None:
+                # SQLite round-trips DateTime columns as naive (it has no
+                # real timezone support), even though we always set them
+                # from an aware datetime.now(timezone.utc) - reattach UTC so
+                # this doesn't blow up subtracting from an aware `now`.
+                last_progress_at = last_progress_at.replace(tzinfo=timezone.utc)
+            gap_s = (now - last_progress_at).total_seconds() if last_progress_at else 0
+            if gap_s >= resume_gap_threshold_s:
+                # Long real-world stop: re-anchor at wherever playback currently
+                # is. Deliberately not gated on the offset having already moved
+                # since the *previous* poll - Plex resumes exactly where it
+                # paused, so the first poll(s) after pressing play still report
+                # the same frozen offset as during the pause. Gating on "moved"
+                # would make this a no-op there and defer the real re-anchor to
+                # the next poll cycle, which is exactly when a user checking
+                # the dashboard right after resuming would see a stale
+                # suggestion. Re-anchoring here to the still-frozen offset is
+                # a harmless no-op while paused, and becomes correct the
+                # instant the offset ticks forward.
+                row.segment_start_ms = session.view_offset_ms
+
+        if session.view_offset_ms != row.last_seen_view_offset_ms:
+            row.last_progress_at = now
+        row.last_seen_view_offset_ms = session.view_offset_ms
+
+        suggested = suggest_break(
+            chapters, duration_ms, min_duration_ms, max_duration_ms, anchor_ms=row.segment_start_ms
+        )
+        # Anchor as of this poll's suggestion - returned as-is below, since
+        # the case-1 advance right after this can move row.segment_start_ms
+        # on to the *next* segment already (see docstring above), which
+        # would desync suggest_breaks() from the suggested break it's
+        # supposed to lead off with.
+        segment_start_ms = row.segment_start_ms
+
+        # Now that this poll's suggestion is settled, advance the anchor for
+        # the *next* poll once playback has moved past the suggested
+        # chapter's end - not just its start. Using the chapter's end (not
+        # start) as the trigger gives a buffer so a brief rewind-and-reapproach
+        # right around the break point (e.g. autopause fires, then the user
+        # scrubs back a few seconds and re-crosses it) doesn't permanently
+        # commit to the next segment out from under _maybe_autopause's own
+        # re-arm logic before the user has actually moved on.
+        if suggested is not None and session.view_offset_ms >= suggested.end_offset_ms:
+            row.segment_start_ms = suggested.start_offset_ms
+
         row.rating_key = session.rating_key
         row.title = session.title
         row.duration_ms = duration_ms
         row.suggested_break_offset_ms = suggested.start_offset_ms if suggested else None
         db.commit()
+        return suggested, segment_start_ms
 
 
 def _fire_and_forget(coro) -> None:
@@ -95,10 +171,12 @@ def _fire_and_forget(coro) -> None:
 def _maybe_notify(
     session_key: str, title: str, suggested: Chapter | None, view_offset_ms: int, lead_time_s: int
 ) -> None:
-    """Fires the break notification once per session, when playback crosses
-    into the [suggested_offset - lead_time, suggested_offset] window. Dedup
-    is enforced via SessionState.notified_at so reconnects/restarts of the
-    poll loop can't double-send."""
+    """Fires the break notification once per suggested break offset, when
+    playback crosses into the [suggested_offset - lead_time, suggested_offset]
+    window. Dedup is enforced via SessionState.notified_for_offset_ms (rather
+    than a plain notified-once flag) so that once the segment anchor advances
+    and a new, later break is suggested, notification re-arms for it instead
+    of being permanently suppressed by the earlier break's notification."""
     if suggested is None:
         return
 
@@ -108,9 +186,10 @@ def _maybe_notify(
 
     with SessionLocal() as db:
         row = db.query(SessionStateModel).filter_by(session_key=session_key).one_or_none()
-        if row is None or row.notified_at is not None:
+        if row is None or row.notified_for_offset_ms == suggested.start_offset_ms:
             return
         row.notified_at = datetime.now(timezone.utc)
+        row.notified_for_offset_ms = suggested.start_offset_ms
         db.commit()
 
     minutes = suggested.start_offset_ms / 60_000
@@ -175,6 +254,7 @@ async def poll_once(
     min_duration_ms: int,
     max_duration_ms: int,
     lead_time_s: int,
+    resume_gap_threshold_s: int = 900,
     autopause_enabled: bool = False,
 ) -> None:
     sessions = await client.get_sessions()
@@ -194,27 +274,30 @@ async def poll_once(
     current = await store.get()
 
     if current and current.session_key == session.session_key:
-        # Same session as last poll: just refresh the playback position,
-        # no need to re-fetch chapters/recompute the break point.
-        current.view_offset_ms = session.view_offset_ms
-        await store.set(current)
-        _maybe_notify(
-            session.session_key, current.title, current.suggested_break,
-            session.view_offset_ms, lead_time_s,
-        )
-        await _maybe_autopause(
-            client, session.session_key, current.player_machine_identifier,
-            current.suggested_break, session.view_offset_ms, autopause_enabled,
-        )
-        return
+        # Same session as last poll: chapters/duration don't change mid-title,
+        # no need to re-fetch them from Plex.
+        chapters, duration_ms = current.chapters, current.duration_ms
+    else:
+        chapters, duration_ms = await client.get_chapters(session.rating_key)
+        duration_ms = duration_ms or session.duration_ms
 
-    chapters, duration_ms = await client.get_chapters(session.rating_key)
-    duration_ms = duration_ms or session.duration_ms
-    suggested = (
-        suggest_break(chapters, duration_ms, min_duration_ms, max_duration_ms)
-        if chapters
-        else None
-    )
+    if chapters:
+        suggested, segment_start_ms = _advance_segment(
+            session, chapters, duration_ms, min_duration_ms, max_duration_ms,
+            resume_gap_threshold_s,
+        )
+        # Recomputed every poll (not cached alongside chapters/duration_ms
+        # above) since the segment anchor can move without the session_key
+        # changing - a long-pause resume or crossing into the next segment
+        # both re-anchor mid-session, and the timeline's secondary marks
+        # need to track that or they'd keep showing the break sequence for
+        # a fresh video-start watch forever.
+        upcoming_breaks = suggest_breaks(
+            chapters, duration_ms, min_duration_ms, max_duration_ms, anchor_ms=segment_start_ms
+        )
+    else:
+        suggested = None
+        upcoming_breaks = []
 
     await store.set(
         CurrentSession(
@@ -226,10 +309,10 @@ async def poll_once(
             view_offset_ms=session.view_offset_ms,
             chapters=chapters,
             suggested_break=suggested,
+            upcoming_breaks=upcoming_breaks,
             player_machine_identifier=session.player_machine_identifier,
         )
     )
-    _persist_session_state(session, suggested, duration_ms)
     _maybe_notify(
         session.session_key, session.title, suggested, session.view_offset_ms, lead_time_s
     )
@@ -247,13 +330,15 @@ async def _poll_cycle() -> None:
             min_duration_ms = s.break_min_duration_min * 60_000
             max_duration_ms = s.break_max_duration_min * 60_000
             lead_time_s = s.break_lead_time_s
+            resume_gap_threshold_s = s.break_resume_gap_min * 60
             autopause_enabled = s.autopause_enabled
 
         if base_url and token:
             client = PlexClient(base_url, token)
             try:
                 await poll_once(
-                    client, min_duration_ms, max_duration_ms, lead_time_s, autopause_enabled
+                    client, min_duration_ms, max_duration_ms, lead_time_s,
+                    resume_gap_threshold_s, autopause_enabled,
                 )
             finally:
                 await client.aclose()

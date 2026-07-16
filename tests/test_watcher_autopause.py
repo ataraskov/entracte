@@ -69,11 +69,20 @@ async def test_autopause_fires_once_when_reaching_break_point():
 
     session = PlaySession(
         session_key=session_key, rating_key="rk1", title="Test Movie", type="movie",
-        duration_ms=duration_ms, view_offset_ms=3_000_000, thumb="",
+        duration_ms=duration_ms, view_offset_ms=0, thumb="",
         player_machine_identifier="player-abc",
     )
     client = FakeClient(session, chapters, duration_ms)
 
+    # The segment anchor is initialized to view_offset_ms the first time a
+    # session is seen, so poll once at offset 0 first to anchor at
+    # video-start, matching this test's window math.
+    await watcher.poll_once(
+        client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120,
+        autopause_enabled=True,
+    )
+
+    session.view_offset_ms = 3_000_000
     await watcher.poll_once(
         client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120,
         autopause_enabled=True,
@@ -110,11 +119,18 @@ async def test_autopause_rearms_after_resuming_from_before_break_point():
 
     session = PlaySession(
         session_key=session_key, rating_key="rk1", title="Test Movie", type="movie",
-        duration_ms=duration_ms, view_offset_ms=3_000_000, thumb="",
+        duration_ms=duration_ms, view_offset_ms=0, thumb="",
         player_machine_identifier="player-abc",
     )
     client = FakeClient(session, chapters, duration_ms)
 
+    # Poll once at offset 0 first to anchor the segment at video-start.
+    await watcher.poll_once(
+        client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120,
+        autopause_enabled=True,
+    )
+
+    session.view_offset_ms = 3_000_000
     await watcher.poll_once(
         client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120,
         autopause_enabled=True,
@@ -198,11 +214,21 @@ async def test_autopause_skips_uncontrollable_player():
 
     session = PlaySession(
         session_key=session_key, rating_key="rk1", title="Test Movie", type="movie",
-        duration_ms=duration_ms, view_offset_ms=3_000_000, thumb="",
+        duration_ms=duration_ms, view_offset_ms=0, thumb="",
         player_machine_identifier="",
     )
     client = FakeClient(session, chapters, duration_ms)
 
+    # Poll once at offset 0 first to anchor the segment at video-start, so
+    # the second poll actually reaches the break point (and thus the
+    # uncontrollable-player skip path) instead of tripping the earlier
+    # "still before the break" early return for an unrelated reason.
+    await watcher.poll_once(
+        client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120,
+        autopause_enabled=True,
+    )
+
+    session.view_offset_ms = 3_000_000
     await watcher.poll_once(
         client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120,
         autopause_enabled=True,
@@ -225,11 +251,18 @@ async def test_autopause_retries_after_transient_pause_failure():
 
     session = PlaySession(
         session_key=session_key, rating_key="rk1", title="Test Movie", type="movie",
-        duration_ms=duration_ms, view_offset_ms=3_000_000, thumb="",
+        duration_ms=duration_ms, view_offset_ms=0, thumb="",
         player_machine_identifier="player-abc",
     )
     client = FlakyThenOkClient(session, chapters, duration_ms, fail_times=1)
 
+    # Poll once at offset 0 first to anchor the segment at video-start.
+    await watcher.poll_once(
+        client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120,
+        autopause_enabled=True,
+    )
+
+    session.view_offset_ms = 3_000_000
     # First attempt fails; must not be recorded as paused.
     await watcher.poll_once(
         client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120,
@@ -276,11 +309,19 @@ async def test_poll_once_prefers_newest_session_over_stale_one():
     )
     fresh = PlaySession(
         session_key="90020", rating_key="rk1", title="Test Movie", type="movie",
-        duration_ms=duration_ms, view_offset_ms=3_000_000, thumb="",
+        duration_ms=duration_ms, view_offset_ms=0, thumb="",
         player_machine_identifier="player-fresh",
     )
     client = MultiSessionClient([stale, fresh], chapters, duration_ms)
 
+    # Poll once at offset 0 first to anchor the "fresh" session's segment at
+    # video-start.
+    await watcher.poll_once(
+        client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120,
+        autopause_enabled=True,
+    )
+
+    fresh.view_offset_ms = 3_000_000
     await watcher.poll_once(
         client, min_duration_ms=2_400_000, max_duration_ms=3_600_000, lead_time_s=120,
         autopause_enabled=True,

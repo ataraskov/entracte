@@ -1,4 +1,4 @@
-from app.breaks.heuristic import suggest_break
+from app.breaks.heuristic import suggest_break, suggest_breaks
 from app.plex.client import Chapter
 
 
@@ -64,3 +64,60 @@ def test_custom_min_max_window():
         chapters, duration_ms, min_duration_ms=3_000_000, max_duration_ms=3_000_000
     )
     assert result.index == 3
+
+
+def test_anchor_shifts_window_forward():
+    # Same 10-chapter/100-minute layout as above, but anchored at chapter 5's
+    # start (3,000,000ms) instead of video start: window becomes
+    # [5,400,000, 6,600,000]ms -> only chapter 9 (starts at 5,400,000) falls
+    # in range.
+    duration_ms = 6_000_000
+    chapters = [chapter(i, i * 600_000, (i + 1) * 600_000) for i in range(10)]
+    result = suggest_break(
+        chapters, duration_ms,
+        min_duration_ms=2_400_000, max_duration_ms=3_600_000, anchor_ms=3_000_000,
+    )
+    assert result.index == 9
+
+
+def test_anchor_excludes_chapter_starting_exactly_at_anchor():
+    duration_ms = 3_000_000
+    chapters = [chapter(0, 1_000_000, 2_000_000), chapter(1, 2_000_000, 3_000_000)]
+    result = suggest_break(
+        chapters, duration_ms,
+        min_duration_ms=0, max_duration_ms=2_000_000, anchor_ms=1_000_000,
+    )
+    assert result.index == 1
+
+
+def test_anchor_past_all_chapters_returns_none():
+    duration_ms = 6_000_000
+    chapters = [chapter(i, i * 600_000, (i + 1) * 600_000) for i in range(10)]
+    result = suggest_break(
+        chapters, duration_ms,
+        min_duration_ms=2_400_000, max_duration_ms=3_600_000, anchor_ms=5_999_000,
+    )
+    assert result is None
+
+
+def test_suggest_breaks_empty_when_no_chapters():
+    assert suggest_breaks([], duration_ms=6_000_000) == []
+
+
+def test_suggest_breaks_single_break_for_short_content():
+    duration_ms = 1_200_000
+    chapters = [chapter(0, 0, 600_000), chapter(1, 600_000, 1_200_000)]
+    result = suggest_breaks(chapters, duration_ms, min_duration_ms=600_000, max_duration_ms=1_200_000)
+    assert [c.index for c in result] == [1]
+
+
+def test_suggest_breaks_returns_sequence_across_long_runtime():
+    # Same 10-chapter/100-minute layout: with a 20-40 min window, the
+    # sequence should keep advancing until nothing is left after the anchor,
+    # producing multiple spaced-out breaks instead of just one.
+    duration_ms = 6_000_000
+    chapters = [chapter(i, i * 600_000, (i + 1) * 600_000) for i in range(10)]
+    result = suggest_breaks(
+        chapters, duration_ms, min_duration_ms=1_200_000, max_duration_ms=2_400_000
+    )
+    assert [c.index for c in result] == [3, 6, 9]
