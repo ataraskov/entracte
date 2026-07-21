@@ -1,0 +1,1 @@
+adjust break suggestion algorithm, to avoid breaks if video lenght is under min session threshold

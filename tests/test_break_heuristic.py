@@ -90,6 +90,15 @@ def test_anchor_excludes_chapter_starting_exactly_at_anchor():
     assert result.index == 1
 
 
+def test_duration_under_min_threshold_returns_none():
+    # A 15-minute title with a 20-minute min session threshold is too short
+    # to warrant a break at all, regardless of chapter layout.
+    duration_ms = 900_000
+    chapters = [chapter(0, 0, 450_000), chapter(1, 450_000, 900_000)]
+    result = suggest_break(chapters, duration_ms, min_duration_ms=1_200_000, max_duration_ms=3_600_000)
+    assert result is None
+
+
 def test_anchor_past_all_chapters_returns_none():
     duration_ms = 6_000_000
     chapters = [chapter(i, i * 600_000, (i + 1) * 600_000) for i in range(10)]
@@ -109,6 +118,13 @@ def test_suggest_breaks_single_break_for_short_content():
     chapters = [chapter(0, 0, 600_000), chapter(1, 600_000, 1_200_000)]
     result = suggest_breaks(chapters, duration_ms, min_duration_ms=600_000, max_duration_ms=1_200_000)
     assert [c.index for c in result] == [1]
+
+
+def test_suggest_breaks_empty_when_duration_under_min_threshold():
+    duration_ms = 900_000
+    chapters = [chapter(0, 0, 450_000), chapter(1, 450_000, 900_000)]
+    result = suggest_breaks(chapters, duration_ms, min_duration_ms=1_200_000, max_duration_ms=3_600_000)
+    assert result == []
 
 
 def test_suggest_breaks_returns_sequence_across_long_runtime():

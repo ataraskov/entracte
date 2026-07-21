@@ -1,0 +1,2 @@
+collect promts used in this session and save them in prompts directory
+prepare changes to be pushed (i.e. add changed files, compose commit message)

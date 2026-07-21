@@ -18,8 +18,10 @@ def suggest_break(
     watcher.py::_advance_segment), preferring chapters that fall inside that
     window. Falls back to the closest chapter after anchor_ms if none fall
     inside the window, and to None if there are no chapters at all, or none
-    left after anchor_ms (nothing more to suggest before the title ends)."""
-    if not chapters or duration_ms <= 0:
+    left after anchor_ms (nothing more to suggest before the title ends), or
+    if the title's total runtime doesn't even reach min_duration_ms (too
+    short to warrant a break)."""
+    if not chapters or duration_ms <= 0 or duration_ms < min_duration_ms:
         return None
 
     after_anchor = [c for c in chapters if c.start_offset_ms > anchor_ms]
