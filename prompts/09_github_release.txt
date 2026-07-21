@@ -1,0 +1,1 @@
+Add auto release on push/tag to master
