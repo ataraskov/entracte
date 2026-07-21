@@ -7,8 +7,14 @@ WORKDIR /app
 COPY pyproject.toml alembic.ini ./
 COPY app ./app
 COPY migrations ./migrations
+COPY .git ./.git
 
-RUN pip install --no-cache-dir .
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && git config --global --add safe.directory /app \
+    && pip install --no-cache-dir . \
+    && apt-get purge -y --auto-remove git \
+    && rm -rf .git /var/lib/apt/lists/*
 
 RUN mkdir -p /app/data
 VOLUME ["/app/data"]

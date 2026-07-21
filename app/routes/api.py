@@ -3,9 +3,11 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.plex import watcher
+from app.version import __version__
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["version"] = __version__
 
 
 @router.get("/api/session/current", response_class=HTMLResponse)

@@ -1,6 +1,6 @@
 [project]
 name = "entracte"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Suggests and notifies a good place to take a break in the Plex movie you're watching."
 requires-python = ">=3.11"
 dependencies = [
@@ -21,11 +21,14 @@ dependencies = [
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

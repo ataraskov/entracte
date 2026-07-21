@@ -15,9 +15,11 @@ from app.notifications.gotify import GotifyNotifier
 from app.notifications.telegram import TelegramNotifier
 from app.notifications.webpush import VAPID_CLAIMS_SUB
 from app.plex.client import PlexClient
+from app.version import __version__
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["version"] = __version__
 
 
 def _check_result(ok: bool, message: str) -> str:

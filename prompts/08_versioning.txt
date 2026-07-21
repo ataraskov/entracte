@@ -1,0 +1,4 @@
+analyze how to add versioning to this project, below are requirements:
+* version should be in sync with git tag
+* version should be displayed on each web page (in the shared footer)
+* push to master branch should have an attached tag
